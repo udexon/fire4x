@@ -1664,17 +1664,79 @@ Load(JSContext* cx, unsigned argc, Value* vp)
     return LoadScript(cx, argc, vp, false);
 }
 
+// use 5GL to extend JSSHELL to include Forth etc?
+
 static bool
-f_Load(JSContext* cx, unsigned argc, Value* vp)
+f_Load1(JSContext* cx, unsigned argc, Value* vp)
 {
-void* dlh = dlopen("./libLibraryName.so", RTLD_NOW);
+
+   char cwd[PATH_MAX];
+   if (getcwd(cwd, sizeof(cwd)) != NULL) {
+       printf("Current working dir: %s\n", cwd);
+   } else {
+       perror("getcwd() error");
+       return 1;
+   }
+   // return 0;
+
+printf("1682 Current working dir: %s\n", cwd);
+
+void* dlh = dlopen("./_d/animals/libcat.so", RTLD_NOW);
   if (!dlh) 
     { fprintf(stderr, "dlopen failed: %s\n", dlerror()); 
       exit(EXIT_FAILURE); };
 
+    void (*func_print_name)(const char*);
+
+    *(void**)(&func_print_name) = dlsym(dlh, "print_name");
+    if (!func_print_name) {
+        /* no such symbol */
+        fprintf(stderr, "Error: %s\n", dlerror());
+        dlclose(dlh);
+        return EXIT_FAILURE;
+    }
+
+    func_print_name("cat");
+    dlclose(dlh);
 
     return LoadScript(cx, argc, vp, false);
 }
+
+// === Custom functions
+//
+// The next three functions are examples of how you can implement functions in
+// C++ that can be called from JS. All such functions have the same signature;
+// this type of function is called a JSNative.
+
+// myjs_rand - A very basic example of a JSNative. It calls the standard C
+// function rand() and returns the result.
+// myjs_rand(JSContext *cx, unsigned argc, Value *vp)
+bool
+f_Load(JSContext* cx, unsigned argc, Value* vp)
+{
+    // Every JSNative should start with this line. The C++ CallArgs object is
+    // how you access the arguments passed from JS and set the return value.
+    JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+
+    // Do the work this function is supposed to do. In this case just call the
+    // rand() function.
+    int result = rand();
+
+    // Set the return value. Every JSNative must do this before returning true.
+    // args.rval() returns a reference to a JS::Value, which has a variety of
+    // setXyz() methods.
+    //
+    // In our case, we want to return a number, so we use setNumber(). It
+    // requires either a double or a uint32_t argument. result is neither of
+    // those, so we cast it.
+    args.rval().setNumber(double(result));
+
+    // Return true to indicate success. Later on we'll see that if a JSNative
+    // throws an exception or encounters an error, it must return false.
+    return true;
+}
+
+
 
 
 static bool
@@ -8059,7 +8121,7 @@ static const JSFunctionSpecWithHelp shell_functions[] = {
 "      current working directory."),
 
 
-    JS_FN_HELP("f_load", Load, 1, 0,
+    JS_FN_HELP("f_load", f_Load, 1, 0,
 "f_load(['foo.js' ...])",
 "  forth Load files named by string arguments. Filename is relative to the\n"
 "      current working directory."),
