@@ -1702,12 +1702,13 @@ void* dlh = dlopen("./_d/animals/libcat.so", RTLD_NOW);
     return LoadScript(cx, argc, vp, false);
 }
 
+
+// 20181105 https://github.com/jorendorff/hello-spidermonkey
 // === Custom functions
 //
 // The next three functions are examples of how you can implement functions in
 // C++ that can be called from JS. All such functions have the same signature;
 // this type of function is called a JSNative.
-
 // myjs_rand - A very basic example of a JSNative. It calls the standard C
 // function rand() and returns the result.
 // myjs_rand(JSContext *cx, unsigned argc, Value *vp)
