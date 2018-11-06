@@ -1702,18 +1702,17 @@ void* dlh = dlopen("./_d/animals/libcat.so", RTLD_NOW);
     return LoadScript(cx, argc, vp, false);
 }
 
-
-// 20181105 https://github.com/jorendorff/hello-spidermonkey
 // === Custom functions
 //
 // The next three functions are examples of how you can implement functions in
 // C++ that can be called from JS. All such functions have the same signature;
 // this type of function is called a JSNative.
+
 // myjs_rand - A very basic example of a JSNative. It calls the standard C
 // function rand() and returns the result.
 // myjs_rand(JSContext *cx, unsigned argc, Value *vp)
 bool
-f_Load(JSContext* cx, unsigned argc, Value* vp)
+f_Load_rand(JSContext* cx, unsigned argc, Value* vp)
 {
     // Every JSNative should start with this line. The C++ CallArgs object is
     // how you access the arguments passed from JS and set the return value.
@@ -1736,6 +1735,71 @@ f_Load(JSContext* cx, unsigned argc, Value* vp)
     // throws an exception or encounters an error, it must return false.
     return true;
 }
+
+// myjs_system - Another example JSNative function. This one includes some
+// string conversion (always a pain) and shows how to throw a JS exception from
+// C++.
+// bool
+// myjs_system(JSContext *cx, unsigned argc, Value *vp)
+// use capital F_func, consistent with js, PHP, etc.
+bool
+f_Load(JSContext *cx, unsigned argc, Value *vp)
+{
+    JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+
+    // Temporary variable to hold a string we're about to create.
+    // Variables must be "Rooted" to protect their values from GC.
+    JS::RootedString cmd(cx);
+
+    // Convert the argument passed by the user (which could be any JS::Value--
+    // a string, number, boolean, object, or something else) to a string.
+    cmd = JS::ToString(cx, args.get(0));
+    if (!cmd) {
+        // If we get here, JS::ToString returned null. That means some kind of
+        // error occurred while converting the argument to a string. Most
+        // likely, the argument was an object, and its .toString() method threw
+        // an exception.  But it could be something else -- maybe we ran out of
+        // memory, for example.
+        //
+        // In any case, it's a good thing we checked that return value! Now we
+        // can gracefully propagate that error on to our caller, like so:
+        return false;
+
+        // If we hadn't checked, we would have crashed the next time we tried
+        // to do anything with cmd. The moral: Always check return values.
+        // Seriously, do it. Don't be lazy. You're better than that.
+    }
+
+    // One more hurdle: JS strings have 16-bit characters. The 'system()'
+    // function expects 8-bit characters. We have to convert. We'll use UTF-8,
+    // so this function will handle Unicode input correctly on Mac and
+    // Linux. On Windows, alas, Unicode will be garbled. (You could work around
+    // that using an #ifdef and some Windows-specific code.)
+
+    JS::UniqueChars bytes = JS_EncodeStringToLatin1(cx, cmd);
+        char *cmdBytes = bytes.get();
+    if (!cmdBytes)  // <-- eternal error-checking vigilance!
+        return false;
+
+    // Actually do the work we came here to do.
+    int status = system(cmdBytes);
+
+    // The documentation for JS_EncodeStringToUTF8 says that the caller (that's
+    // us) is responsible for freeing the buffer.
+    // JS_free(bytes);
+
+    // When system() returns nonzero, that means the command failed somehow.
+    if (status != 0) {
+        // Set up a JavaScript exception and return false.
+        // JS_ReportError(cx, "Command failed with status code %d", status);
+        return false;
+    }
+
+    // Success!
+    args.rval().setUndefined();
+    return true;
+}
+
 
 
 
